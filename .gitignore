@@ -1,0 +1,12 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Next.js build folder
+.next/
+
+# Optional (recommended for Next.js)
+node_modules/
+.env
+out/
