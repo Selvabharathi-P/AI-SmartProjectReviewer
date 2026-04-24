@@ -1,13 +1,13 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useSubmitProject } from "@/hooks/useProjects";
+import { useSubmitProject, useParseDocument } from "@/hooks/useProjects";
 import { useToast } from "@/hooks/useToast";
 import Spinner from "@/components/shared/Spinner";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Upload, FileText, AlertCircle } from "lucide-react";
 import { ROUTES, PROJECT_DOMAINS } from "@/lib/constants";
 
 const schema = z.object({
@@ -18,17 +18,25 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+const ACCEPTED_TYPES = ".pptx,.ppt,.pdf,.docx,.doc";
+const ACCEPTED_LABELS = "PPT, PPTX, PDF, DOCX, DOC";
 
 export default function SubmitProject() {
   const router = useRouter();
   const { mutateAsync, isPending } = useSubmitProject();
+  const { mutateAsync: parseDoc, isPending: isParsing } = useParseDocument();
   const toast = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [modules, setModules] = useState<string[]>([""]);
   const [technologies, setTechnologies] = useState<string[]>([""]);
   const [teamMembers, setTeamMembers] = useState<string[]>([""]);
   const [error, setError] = useState("");
+  const [uploadedFile, setUploadedFile] = useState<string | null>(null);
+  const [parseError, setParseError] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
@@ -38,6 +46,38 @@ export default function SubmitProject() {
   const addItem = (setter: React.Dispatch<React.SetStateAction<string[]>>) => setter((p) => [...p, ""]);
   const removeItem = (setter: React.Dispatch<React.SetStateAction<string[]>>, idx: number) =>
     setter((p) => p.filter((_, i) => i !== idx));
+
+  const handleFile = async (file: File) => {
+    setParseError("");
+    setUploadedFile(file.name);
+    try {
+      const data = await parseDoc(file);
+      setValue("title", data.title);
+      setValue("description", data.description);
+      if (data.domain) setValue("domain", data.domain);
+      setModules(data.modules.length ? data.modules : [""]);
+      setTechnologies(data.technologies.length ? data.technologies : [""]);
+      setTeamMembers(data.team_members.length ? data.team_members : [""]);
+      toast.success("Document parsed!", "Fields auto-filled. Review and submit.");
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Could not parse document. Fill manually.";
+      setParseError(msg);
+      setUploadedFile(null);
+    }
+  };
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+    e.target.value = "";
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
 
   const onSubmit = async (data: FormData) => {
     const cleanModules = modules.filter((m) => m.trim());
@@ -57,7 +97,51 @@ export default function SubmitProject() {
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-800 mb-2">Submit Project</h1>
-      <p className="text-gray-500 mb-8">Fill in the details and our AI will analyze your project</p>
+      <p className="text-gray-500 mb-6">Upload a document to auto-fill, or fill manually below</p>
+
+      {/* Document upload */}
+      <div
+        className={`mb-8 border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer ${
+          isDragging ? "border-blue-400 bg-blue-50" : "border-gray-300 hover:border-blue-400 hover:bg-gray-50"
+        }`}
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={onDrop}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ACCEPTED_TYPES}
+          className="hidden"
+          onChange={onFileChange}
+        />
+        {isParsing ? (
+          <div className="flex flex-col items-center gap-2 text-blue-600">
+            <Spinner size="sm" />
+            <p className="text-sm font-medium">Parsing document with AI…</p>
+          </div>
+        ) : uploadedFile ? (
+          <div className="flex flex-col items-center gap-1 text-green-600">
+            <FileText size={28} />
+            <p className="text-sm font-medium">{uploadedFile}</p>
+            <p className="text-xs text-gray-500">Fields auto-filled. Click to replace.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 text-gray-400">
+            <Upload size={28} />
+            <p className="text-sm font-medium text-gray-600">Drop your project document here</p>
+            <p className="text-xs">{ACCEPTED_LABELS} · Max 20 MB</p>
+          </div>
+        )}
+      </div>
+
+      {parseError && (
+        <div className="mb-6 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <span>{parseError}</span>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 bg-white p-6 rounded-xl border border-gray-200">
         <div>
@@ -125,7 +209,7 @@ export default function SubmitProject() {
 
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || isParsing}
           className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition"
         >
           {isPending ? (

@@ -14,6 +14,9 @@ export const ROUTES = {
   STUDENT_SUBMIT: "/student/submit",
   FACULTY_DASHBOARD: "/faculty/dashboard",
   FACULTY_SUBMISSIONS: "/faculty/submissions",
+  ADMIN_DASHBOARD: "/admin/dashboard",
+  ADMIN_USERS: "/admin/users",
+  ADMIN_DEPARTMENTS: "/admin/departments",
 } as const;
 
 // ── Misc ──────────────────────────────────────────────────────

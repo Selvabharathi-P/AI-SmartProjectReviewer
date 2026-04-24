@@ -5,10 +5,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
+import { useDepartments } from "@/hooks/useAdmin";
 import { useToast } from "@/hooks/useToast";
 import Link from "next/link";
 import {
-  User, Mail, Lock, Building2, ChevronDown, UserPlus,
+  User, Mail, Lock, Building2, ChevronDown, UserPlus, Hash,
   AlertCircle, Brain, Eye, EyeOff,
 } from "lucide-react";
 import Spinner from "@/components/shared/Spinner";
@@ -19,7 +20,8 @@ const schema = z.object({
   email: z.string().email("Enter a valid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["student", "faculty"]),
-  department: z.string().optional(),
+  department_id: z.coerce.number().nullable().optional(),
+  id_number: z.string().min(1, "ID number is required"),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -27,6 +29,7 @@ type FormData = z.infer<typeof schema>;
 export default function RegisterPage() {
   const router = useRouter();
   const { register: registerUser } = useAuth();
+  const { data: departments } = useDepartments();
   const toast = useToast();
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -42,7 +45,11 @@ export default function RegisterPage() {
   const onSubmit = async (data: FormData) => {
     try {
       setError("");
-      await registerUser(data);
+      await registerUser({
+        ...data,
+        department_id: data.department_id || null,
+        id_number: data.id_number,
+      });
       toast.success("Account created!", "Please sign in to continue.");
       router.push(ROUTES.LOGIN);
     } catch {
@@ -198,14 +205,39 @@ export default function RegisterPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Department</label>
                   <div className="relative">
-                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      {...register("department")}
-                      placeholder="e.g. CS"
-                      className={inputClass}
-                    />
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <select
+                      {...register("department_id")}
+                      className="w-full pl-9 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition appearance-none"
+                    >
+                      <option value="">— Select —</option>
+                      {departments?.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
                 </div>
+              </div>
+
+              {/* ID Number */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  ID Number <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    {...register("id_number")}
+                    placeholder="Student / Staff ID"
+                    className={inputClass}
+                  />
+                </div>
+                {errors.id_number && (
+                  <p className="flex items-center gap-1 text-red-500 text-xs mt-1.5">
+                    <AlertCircle className="w-3 h-3" /> {errors.id_number.message}
+                  </p>
+                )}
               </div>
 
               {error && (

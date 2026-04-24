@@ -1,11 +1,19 @@
 export type Role = "student" | "faculty" | "admin";
 
+export interface Department {
+  id: number;
+  name: string;
+  code: string | null;
+}
+
 export interface User {
   id: number;
   full_name: string;
   email: string;
   role: Role;
+  department_id: number | null;
   department: string | null;
+  id_number: string | null;
 }
 
 export interface AuthResponse {
@@ -19,6 +27,7 @@ export type ProjectStatus = "pending" | "analyzing" | "reviewed" | "selected" | 
 export interface Project {
   id: number;
   student_id: number;
+  department_id: number | null;
   title: string;
   description: string;
   modules: string[];

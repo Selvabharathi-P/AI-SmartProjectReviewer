@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Enum, DateTime, ARRAY, func
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Enum, DateTime, func
 from app.db.base import Base
 import enum
 
@@ -17,6 +17,7 @@ class Project(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
     modules = Column(Text, nullable=False)          # JSON string

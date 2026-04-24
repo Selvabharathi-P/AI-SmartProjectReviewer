@@ -16,7 +16,8 @@ export function useAuth() {
     email: string;
     password: string;
     role: string;
-    department?: string;
+    department_id?: number | null;
+    id_number?: string | null;
   }) => {
     const { data } = await api.post("/auth/register", payload);
     return data;

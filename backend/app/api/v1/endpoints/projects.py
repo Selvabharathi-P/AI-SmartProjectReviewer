@@ -1,6 +1,5 @@
 import json
-import asyncio
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
@@ -9,8 +8,35 @@ from app.models.project import Project, ProjectStatus
 from app.models.user import User, UserRole
 from app.core.deps import get_current_user, require_role
 from app.services.evaluation_service import run_ai_evaluation
+from app.services.file_parser import parse_document
+
+ALLOWED_EXTENSIONS = {"pptx", "ppt", "pdf", "docx", "doc"}
+MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+@router.post("/parse-document")
+async def parse_document_endpoint(
+    file: UploadFile = File(...),
+    _: User = Depends(require_role(UserRole.student)),
+):
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Max 20 MB.")
+
+    try:
+        result = parse_document(file.filename, file_bytes)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to parse document. Try manual entry.")
+
+    return result
 
 
 @router.post("/", response_model=ProjectOut, status_code=201)
@@ -22,6 +48,7 @@ async def submit_project(
 ):
     project = Project(
         student_id=current_user.id,
+        department_id=current_user.department_id,
         title=payload.title,
         description=payload.description,
         modules=json.dumps(payload.modules),
@@ -49,10 +76,14 @@ async def my_projects(
 
 @router.get("/", response_model=list[ProjectOut])
 async def all_projects(
+    department_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.faculty, UserRole.admin)),
+    _: User = Depends(require_role(UserRole.faculty, UserRole.admin)),
 ):
-    result = await db.execute(select(Project))
+    query = select(Project)
+    if department_id is not None:
+        query = query.where(Project.department_id == department_id)
+    result = await db.execute(query)
     return [_serialize(p) for p in result.scalars().all()]
 
 
@@ -60,7 +91,7 @@ async def all_projects(
 async def get_project(
     project_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _: User = Depends(get_current_user),
 ):
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
@@ -74,7 +105,7 @@ async def update_status(
     project_id: int,
     payload: ProjectStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.faculty, UserRole.admin)),
+    _: User = Depends(require_role(UserRole.faculty, UserRole.admin)),
 ):
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
@@ -89,6 +120,7 @@ def _serialize(p: Project) -> dict:
     return {
         "id": p.id,
         "student_id": p.student_id,
+        "department_id": p.department_id,
         "title": p.title,
         "description": p.description,
         "modules": json.loads(p.modules),

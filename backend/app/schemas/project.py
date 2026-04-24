@@ -16,6 +16,7 @@ class ProjectSubmit(BaseModel):
 class ProjectOut(BaseModel):
     id: int
     student_id: int
+    department_id: int | None
     title: str
     description: str
     modules: List[str]

@@ -1,6 +1,5 @@
 from pydantic import BaseModel, EmailStr
 from app.models.user import UserRole
-from datetime import datetime
 
 
 class UserRegister(BaseModel):
@@ -8,7 +7,8 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str
     role: UserRole = UserRole.student
-    department: str | None = None
+    department_id: int | None = None
+    id_number: str
 
 
 class UserLogin(BaseModel):
@@ -21,7 +21,9 @@ class UserOut(BaseModel):
     full_name: str
     email: str
     role: UserRole
-    department: str | None
+    department_id: int | None
+    department: str | None = None   # department name, resolved by endpoint
+    id_number: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -30,3 +32,8 @@ class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+
+
+class UserAdminUpdate(BaseModel):
+    role: UserRole | None = None
+    department_id: int | None = None

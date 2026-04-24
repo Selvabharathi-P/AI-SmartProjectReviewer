@@ -13,6 +13,11 @@ class Settings(BaseSettings):
 
     SERPER_API_KEY: str = ""
 
+    ADMIN_EMAIL: str = "admin@smarteval.com"
+    ADMIN_PASSWORD: str = "Admin@123"
+    ADMIN_FULL_NAME: str = "System Admin"
+    ADMIN_ID_NUMBER: str = "ADMIN001"
+
     class Config:
         env_file = ".env"
 

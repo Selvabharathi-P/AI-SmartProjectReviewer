@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Enum, DateTime, func
+from sqlalchemy import Column, Integer, String, Enum, DateTime, ForeignKey, func
 from app.db.base import Base
 import enum
 
@@ -17,5 +17,6 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     role = Column(Enum(UserRole), default=UserRole.student, nullable=False)
-    department = Column(String, nullable=True)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    id_number = Column(String, nullable=False)
     created_at = Column(DateTime, server_default=func.now())

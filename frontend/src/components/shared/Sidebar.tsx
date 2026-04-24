@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, FolderPlus, Users, LogOut, Brain } from "lucide-react";
+import { LayoutDashboard, FolderPlus, Users, LogOut, Brain, ShieldCheck, Building2 } from "lucide-react";
 
 const studentLinks = [
   { href: "/student/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -15,10 +15,20 @@ const facultyLinks = [
   { href: "/faculty/submissions", label: "All Submissions", icon: Users },
 ];
 
+const adminLinks = [
+  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/projects", label: "All Projects", icon: FolderPlus },
+  { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/departments", label: "Departments", icon: Building2 },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
-  const links = user?.role === "faculty" ? facultyLinks : studentLinks;
+  const links =
+    user?.role === "faculty" ? facultyLinks :
+    user?.role === "admin" ? adminLinks :
+    studentLinks;
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 h-screen sticky top-0 flex flex-col">
@@ -51,7 +61,10 @@ export default function Sidebar() {
 
       <div className="p-4 border-t border-gray-200">
         <div className="mb-3 px-3">
-          <p className="text-sm font-medium text-gray-800">{user?.full_name}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium text-gray-800">{user?.full_name}</p>
+            {user?.role === "admin" && <ShieldCheck size={14} className="text-blue-600" />}
+          </div>
           <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
         </div>
         <button

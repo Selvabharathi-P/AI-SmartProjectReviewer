@@ -38,6 +38,26 @@ export function useEvaluation(projectId: number, projectStatus?: string) {
   });
 }
 
+export function useParseDocument() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await api.post("/projects/parse-document", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      return res.data as {
+        title: string;
+        description: string;
+        modules: string[];
+        technologies: string[];
+        team_members: string[];
+        domain: string;
+      };
+    },
+  });
+}
+
 export function useSubmitProject() {
   const qc = useQueryClient();
   return useMutation({

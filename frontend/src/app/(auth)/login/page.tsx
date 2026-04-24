@@ -37,6 +37,7 @@ export default function LoginPage() {
       toast.success("Welcome back!", `Signed in as ${user.full_name}`);
       if (user.role === "student") router.push(ROUTES.STUDENT_DASHBOARD);
       else if (user.role === "faculty") router.push(ROUTES.FACULTY_DASHBOARD);
+      else if (user.role === "admin") router.push(ROUTES.ADMIN_DASHBOARD);
     } catch {
       setError("Invalid email or password. Please try again.");
     }

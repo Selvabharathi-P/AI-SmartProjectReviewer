@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.db.session import engine
 from app.db.base import Base
+from app.db.seed import seed_admin
 import app.db.all_models  # noqa — register all models before create_all
 
 
@@ -11,6 +12,7 @@ import app.db.all_models  # noqa — register all models before create_all
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await seed_admin()
     yield
 
 
