@@ -1,0 +1,41 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+actor Student
+actor Faculty
+actor Admin
+actor "AI Service" as AI
+rectangle "AI-SmartProjectReviewer" {
+  (Submit Project) as SP
+  (Parse Document) as PD
+  (View My Projects) as VMP
+  (View All Projects) as VAP
+  (Auto-Evaluate) as AE
+  (Get Evaluation) as GE
+  (Faculty Review) as FR
+  (Update Project Status) as UPS
+  (Manage Users) as MU
+  (Manage Departments) as MD
+}
+
+Student --> SP
+Student --> PD
+Student --> VMP
+Student --> GE
+Faculty --> VAP
+Faculty --> FR
+Faculty --> UPS
+Admin --> MU
+Admin --> MD
+
+SP .> AE : <<includes>>
+AE .. AI : <<uses>>
+FR .> AE : <<related to>>
+
+note right of SP
+  Typical flow: Student submits project (web form
+  or document parse) -> background AI evaluation
+  -> evaluation stored -> student/faculty view results.
+end note
+
+@enduml

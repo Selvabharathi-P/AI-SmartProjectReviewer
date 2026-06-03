@@ -1,0 +1,22 @@
+@startuml
+title Interaction: AI evaluation collaboration
+actor Scheduler
+participant API
+participant DB
+participant EvaluationService
+participant "Mistral (LLM)" as Mistral
+participant "Serper (Search)" as Serper
+
+Scheduler -> API: trigger background task
+API -> EvaluationService: run_ai_evaluation(project_id)
+EvaluationService -> DB: fetch Project
+EvaluationService -> Mistral: chat(prompt for feedback)
+Mistral --> EvaluationService: ai_feedback
+EvaluationService -> Mistral: chat(prompt for suggested modules)
+Mistral --> EvaluationService: suggested_modules
+EvaluationService -> Serper: search_related_work(title, domain)
+Serper --> EvaluationService: related_papers, similar_projects
+EvaluationService -> DB: upsert Evaluation and update Project status
+EvaluationService --> API: completed
+
+@enduml

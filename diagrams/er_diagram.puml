@@ -1,0 +1,70 @@
+@startuml
+entity users {
+  * id : integer <<PK>>
+  --
+  full_name : varchar
+  email : varchar
+  hashed_password : varchar
+  role : enum
+  department_id : integer <<FK>>
+  id_number : varchar
+  created_at : datetime
+}
+
+entity departments {
+  * id : integer <<PK>>
+  --
+  name : varchar
+  code : varchar
+  created_at : datetime
+}
+
+entity projects {
+  * id : integer <<PK>>
+  --
+  student_id : integer <<FK>>
+  department_id : integer <<FK>>
+  title : varchar
+  description : text
+  modules : json
+  technologies : json
+  team_members : json
+  domain : varchar
+  status : enum
+  submitted_at : datetime
+  updated_at : datetime
+}
+
+entity evaluations {
+  * id : integer <<PK>>
+  --
+  project_id : integer <<FK>> (unique)
+  faculty_id : integer <<FK>>
+  title_score : float
+  description_score : float
+  module_score : float
+  tech_score : float
+  innovation_score : float
+  feasibility_score : float
+  ai_total_score : float
+  ai_feedback : text
+  suggested_modules : json
+  missing_skills : json
+  keywords : json
+  related_papers : json
+  similar_projects : json
+  originality_verdict : text
+  faculty_score : float
+  faculty_remarks : text
+  is_finalized : boolean
+  created_at : datetime
+  updated_at : datetime
+}
+
+users ||--o{ projects : "submits"
+departments ||--o{ users : "has"
+departments ||--o{ projects : "owns"
+projects ||--o{ evaluations : "has"
+users ||--o{ evaluations : "reviews"
+
+@enduml

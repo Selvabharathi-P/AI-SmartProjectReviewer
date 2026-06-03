@@ -1,0 +1,31 @@
+@startuml
+actor Student
+participant Frontend
+participant API
+participant DB
+participant BackgroundTask
+participant EvaluationService
+participant AI
+
+Student -> Frontend: Fill form or upload document
+Frontend -> API: POST /projects (payload)
+API -> DB: INSERT Project (status=analyzing)
+API -> BackgroundTask: enqueue run_ai_evaluation(project_id)
+API --> Frontend: 201 Created + project
+
+BackgroundTask -> EvaluationService: run_ai_evaluation(project)
+EvaluationService -> AI: score title, description, modules, tech
+EvaluationService -> AI: chat for feedback & suggested modules
+EvaluationService -> AI: search_related_work (Serper)
+EvaluationService -> DB: upsert Evaluation
+EvaluationService -> DB: update Project.status = reviewed
+EvaluationService --> BackgroundTask: done
+
+alt Faculty wants to review
+  Faculty -> Frontend: open evaluation
+  Frontend -> API: PATCH /evaluations/{project_id}/faculty-review
+  API -> DB: update Evaluation (faculty_score, remarks, finalized)
+  API --> Frontend: 200 OK
+end
+
+@enduml

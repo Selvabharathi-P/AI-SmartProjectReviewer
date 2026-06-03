@@ -1,0 +1,101 @@
+@startuml
+skinparam classAttributeIconSize 0
+package "Models (SQLAlchemy)" {
+  class User {
+    +id: int
+    +full_name: str
+    +email: str
+    +hashed_password: str
+    +role: UserRole
+    +department_id: int?
+    +id_number: str
+    +created_at: datetime
+  }
+
+  class Department {
+    +id: int
+    +name: str
+    +code: str?
+    +created_at: datetime
+  }
+
+  class Project {
+    +id: int
+    +student_id: int
+    +department_id: int?
+    +title: str
+    +description: str
+    +modules: JSON
+    +technologies: JSON
+    +team_members: JSON?
+    +domain: str?
+    +status: ProjectStatus
+    +submitted_at: datetime
+    +updated_at: datetime?
+  }
+
+  class Evaluation {
+    +id: int
+    +project_id: int
+    +faculty_id: int?
+    +title_score: float
+    +description_score: float
+    +module_score: float
+    +tech_score: float
+    +innovation_score: float
+    +feasibility_score: float
+    +ai_total_score: float
+    +ai_feedback: text?
+    +suggested_modules: JSON?
+    +missing_skills: JSON?
+    +keywords: JSON?
+    +related_papers: JSON?
+    +similar_projects: JSON?
+    +originality_verdict: text?
+    +faculty_score: float?
+    +faculty_remarks: text?
+    +is_finalized: bool
+    +created_at: datetime
+    +updated_at: datetime?
+  }
+}
+
+package "Schemas (Pydantic)" {
+  class ProjectSubmit {
+    +title: str
+    +description: str
+    +modules: List[str]
+    +technologies: List[str]
+    +team_members: List[str]
+    +domain: str?
+  }
+
+  class ProjectOut { }
+  class EvaluationOut { }
+  class FacultyReview { }
+}
+
+package "Services" {
+  class EvaluationService {
+    +run_ai_evaluation(project: Project, db: AsyncSession) : Evaluation
+    -_analyze_originality(...): str
+  }
+
+  class FileParser {
+    +parse_document(filename: str, file_bytes: bytes) : dict
+    -extract_text_from_pdf(...)
+    -extract_text_from_docx(...)
+  }
+}
+
+"User"  o-- "Department" : belongs to
+"Project" *-- "User" : student
+"Project" o-- "Department" : optional
+"Evaluation" *-- "Project" : for
+"Evaluation" o-- "User" : faculty (optional)
+
+EvaluationService ..> Evaluation : creates/updates
+EvaluationService ..> AI : uses
+FileParser ..> Project : extracts payload
+
+@enduml

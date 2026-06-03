@@ -1,0 +1,22 @@
+@startuml
+start
+:Student uploads document or fills form;
+if (Document uploaded?) then (yes)
+  :Backend.parse_document(file) -> structured payload;
+else (no)
+  :Use form input as payload;
+endif
+:
+:Create Project record (status=analyzing);
+:Trigger background task -> EvaluationService.run_ai_evaluation(project);
+:
+fork
+  :EvaluationService runs AI scorers, NLP, web search;
+  :Create/Update Evaluation record;
+  :Set project.status = reviewed;
+fork again
+  :Notify student/faculty (implicit via API availability);
+end fork
+stop
+
+@enduml
