@@ -5,8 +5,9 @@ from app.db.session import get_db
 from app.models.department import Department
 from app.models.user import User, UserRole
 from app.schemas.department import DepartmentCreate, DepartmentOut
-from app.schemas.user import UserOut, UserAdminUpdate
+from app.schemas.user import UserOut, UserAdminCreate, UserAdminUpdate
 from app.core.deps import require_role
+from app.core.security import hash_password
 
 router = APIRouter(tags=["admin"])
 
@@ -61,6 +62,29 @@ async def list_users(
     return [await _enrich_user(u, db) for u in users]
 
 
+@router.post("/users", response_model=UserOut, status_code=201)
+async def create_user(
+    payload: UserAdminCreate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.admin)),
+):
+    existing = await db.execute(select(User).where(User.email == payload.email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email already registered")
+    user = User(
+        full_name=payload.full_name,
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        role=payload.role,
+        department_id=payload.department_id,
+        id_number=payload.id_number,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return await _enrich_user(user, db)
+
+
 @router.patch("/users/{user_id}", response_model=UserOut)
 async def update_user(
     user_id: int,
@@ -74,10 +98,21 @@ async def update_user(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if payload.email is not None and payload.email != user.email:
+        dup = await db.execute(select(User).where(User.email == payload.email))
+        if dup.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Email already registered")
+        user.email = payload.email
+    if payload.full_name is not None:
+        user.full_name = payload.full_name
+    if payload.id_number is not None:
+        user.id_number = payload.id_number
     if payload.role is not None:
         user.role = payload.role
     if payload.department_id is not None:
         user.department_id = payload.department_id
+    if payload.is_active is not None:
+        user.is_active = payload.is_active
     await db.commit()
     await db.refresh(user)
     return await _enrich_user(user, db)
@@ -113,4 +148,5 @@ async def _enrich_user(user: User, db: AsyncSession) -> UserOut:
         department_id=user.department_id,
         department=dept_name,
         id_number=user.id_number,
+        is_active=user.is_active,
     )

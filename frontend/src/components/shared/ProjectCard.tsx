@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Project } from "@/types";
 import { statusBadgeColor } from "@/lib/utils";
-import { Calendar, User } from "lucide-react";
+import { Calendar, History } from "lucide-react";
 
 interface Props {
   project: Project;
@@ -26,9 +26,16 @@ export default function ProjectCard({ project, href }: Props) {
           <span className="text-gray-400 text-xs">+{project.technologies.length - 4}</span>
         )}
       </div>
-      <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Calendar size={12} />
-        {new Date(project.submitted_at).toLocaleDateString()}
+      <div className="flex items-center gap-3 text-xs text-gray-400">
+        <span className="flex items-center gap-1">
+          <Calendar size={12} />
+          {new Date(project.submitted_at).toLocaleDateString()}
+        </span>
+        <span className="flex items-center gap-1">
+          <History size={12} />
+          v{project.version_number}
+          {project.total_versions > 1 && ` · ${project.total_versions} versions`}
+        </span>
       </div>
     </Link>
   );

@@ -1,6 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
-import type { Project, Evaluation } from "@/types";
+import type { Project, ProjectVersion, ReviewQueueItem, Evaluation } from "@/types";
+
+export interface VersionPayload {
+  description: string;
+  modules: string[];
+  technologies: string[];
+  team_members: string[];
+  domain?: string;
+}
 
 export function useMyProjects() {
   return useQuery<Project[]>({
@@ -38,6 +46,58 @@ export function useEvaluation(projectId: number, projectStatus?: string) {
   });
 }
 
+export function useProjectVersions(projectId: number) {
+  return useQuery<ProjectVersion[]>({
+    queryKey: ["project-versions", projectId],
+    queryFn: async () => (await api.get(`/projects/${projectId}/versions`)).data,
+    enabled: !!projectId,
+  });
+}
+
+export function useUploadVersion(projectId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: VersionPayload) => api.post(`/projects/${projectId}/versions`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-versions", projectId] });
+      qc.invalidateQueries({ queryKey: ["project", projectId] });
+      qc.invalidateQueries({ queryKey: ["my-projects"] });
+    },
+  });
+}
+
+export function useSubmitVersionForReview(projectId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (versionId: number) =>
+      api.post(`/projects/${projectId}/versions/${versionId}/submit`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-versions", projectId] });
+      qc.invalidateQueries({ queryKey: ["review-queue"] });
+    },
+  });
+}
+
+export function useReviewQueue() {
+  return useQuery<ReviewQueueItem[]>({
+    queryKey: ["review-queue"],
+    queryFn: async () => (await api.get("/projects/review-queue")).data,
+  });
+}
+
+export function useVersionEvaluation(versionId: number | undefined, versionStatus?: string) {
+  const isAnalyzing = versionStatus === "analyzing";
+  return useQuery<Evaluation>({
+    queryKey: ["version-evaluation", versionId],
+    queryFn: async () => (await api.get(`/evaluations/version/${versionId}`)).data,
+    enabled: !!versionId,
+    retry: 5,
+    retryDelay: 3000,
+    refetchInterval: isAnalyzing ? 4000 : false,
+    refetchIntervalInBackground: false,
+  });
+}
+
 export function useParseDocument() {
   return useMutation({
     mutationFn: async (file: File) => {
@@ -69,7 +129,9 @@ export function useSubmitProject() {
       team_members: string[];
       domain?: string;
     }) => api.post("/projects", data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["my-projects"] }),
+    // refetchType "all" also refetches the (currently unmounted) dashboard query,
+    // so the new project is already in cache when we navigate there.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["my-projects"], refetchType: "all" }),
   });
 }
 

@@ -5,21 +5,49 @@ from sqlalchemy import select
 from app.db.session import get_db
 from app.schemas.evaluation import EvaluationOut, FacultyReview
 from app.models.evaluation import Evaluation
-from app.models.project import Project, ProjectStatus
+from app.models.project import Project, ProjectVersion, ProjectStatus, ReviewStatus
 from app.models.user import User, UserRole
 from app.core.deps import get_current_user, require_role
 
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
 
+async def _latest_version_id(project_id: int, db: AsyncSession) -> int | None:
+    result = await db.execute(
+        select(ProjectVersion.id)
+        .where(ProjectVersion.project_id == project_id)
+        .order_by(ProjectVersion.version_number.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _eval_for_version(version_id: int, db: AsyncSession) -> Evaluation | None:
+    result = await db.execute(select(Evaluation).where(Evaluation.version_id == version_id))
+    return result.scalar_one_or_none()
+
+
+@router.get("/version/{version_id}", response_model=EvaluationOut)
+async def get_evaluation_by_version(
+    version_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    ev = await _eval_for_version(version_id, db)
+    if not ev:
+        raise HTTPException(status_code=404, detail="Evaluation not ready yet")
+    return _serialize(ev)
+
+
 @router.get("/{project_id}", response_model=EvaluationOut)
 async def get_evaluation(
     project_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Evaluation).where(Evaluation.project_id == project_id))
-    ev = result.scalar_one_or_none()
+    """Backward-compatible: returns the evaluation of the project's latest version."""
+    version_id = await _latest_version_id(project_id, db)
+    ev = await _eval_for_version(version_id, db) if version_id else None
     if not ev:
         raise HTTPException(status_code=404, detail="Evaluation not ready yet")
     return _serialize(ev)
@@ -32,8 +60,8 @@ async def faculty_review(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.faculty, UserRole.admin)),
 ):
-    result = await db.execute(select(Evaluation).where(Evaluation.project_id == project_id))
-    ev = result.scalar_one_or_none()
+    version_id = await _latest_version_id(project_id, db)
+    ev = await _eval_for_version(version_id, db) if version_id else None
     if not ev:
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
@@ -42,16 +70,21 @@ async def faculty_review(
     ev.faculty_remarks = payload.faculty_remarks
     ev.is_finalized = payload.is_finalized
 
-    # Optionally update project status in the same call
-    if payload.project_status:
-        try:
-            new_status = ProjectStatus(payload.project_status)
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: {payload.project_status}")
-        proj_result = await db.execute(select(Project).where(Project.id == project_id))
-        proj = proj_result.scalar_one_or_none()
-        if proj:
-            proj.status = new_status
+    version = (
+        await db.execute(select(ProjectVersion).where(ProjectVersion.id == version_id))
+    ).scalar_one_or_none()
+    if version:
+        # Advance the review status as faculty acts on the submitted version.
+        if version.submitted_for_review:
+            version.review_status = (
+                ReviewStatus.evaluated.value if payload.is_finalized else ReviewStatus.under_review.value
+            )
+        # Optionally update the reviewed version's project status in the same call
+        if payload.project_status:
+            try:
+                version.status = ProjectStatus(payload.project_status)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid status: {payload.project_status}")
 
     await db.commit()
     await db.refresh(ev)
@@ -61,7 +94,7 @@ async def faculty_review(
 def _serialize(ev: Evaluation) -> dict:
     return {
         "id": ev.id,
-        "project_id": ev.project_id,
+        "version_id": ev.version_id,
         "title_score": ev.title_score,
         "description_score": ev.description_score,
         "module_score": ev.module_score,

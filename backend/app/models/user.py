@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Enum, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Enum, DateTime, ForeignKey, Boolean, func
 from app.db.base import Base
 import enum
 
@@ -19,4 +19,5 @@ class User(Base):
     role = Column(Enum(UserRole), default=UserRole.student, nullable=False)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
     id_number = Column(String, nullable=False)
+    is_active = Column(Boolean, nullable=False, server_default="true")
     created_at = Column(DateTime, server_default=func.now())

@@ -3,16 +3,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, FolderPlus, Users, LogOut, Brain, ShieldCheck, Building2 } from "lucide-react";
+import { LayoutDashboard, FolderPlus, Users, LogOut, Brain, ShieldCheck, Building2, Video } from "lucide-react";
 
 const studentLinks = [
   { href: "/student/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/student/submit", label: "Submit Project", icon: FolderPlus },
+  { href: "/student/meetings", label: "Meetings", icon: Video },
 ];
 
 const facultyLinks = [
   { href: "/faculty/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/faculty/submissions", label: "All Submissions", icon: Users },
+  { href: "/faculty/submissions", label: "Submissions", icon: Users },
+  { href: "/faculty/meetings", label: "Meetings", icon: Video },
 ];
 
 const adminLinks = [

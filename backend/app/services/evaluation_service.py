@@ -2,40 +2,56 @@ import json
 from app.ai import scorer, nlp_processor, skill_matcher
 from app.ai.mistral_client import chat
 from app.ai.serper_client import search_related_work
-from app.models.project import Project, ProjectStatus
+from app.models.project import Project, ProjectVersion, ProjectStatus
 from app.models.evaluation import Evaluation
+from app.db.session import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 
-async def run_ai_evaluation(project: Project, db: AsyncSession) -> Evaluation:
-    modules = json.loads(project.modules)
-    technologies = json.loads(project.technologies)
+async def run_ai_evaluation(version_id: int) -> Evaluation | None:
+    """Background task: evaluate one project version. Owns its own DB session."""
+    async with AsyncSessionLocal() as db:
+        version = (
+            await db.execute(select(ProjectVersion).where(ProjectVersion.id == version_id))
+        ).scalar_one_or_none()
+        if not version:
+            return None
+        project = (
+            await db.execute(select(Project).where(Project.id == version.project_id))
+        ).scalar_one_or_none()
+        title = project.title if project else ""
+        return await _evaluate_version(version, title, db)
+
+
+async def _evaluate_version(version: ProjectVersion, title: str, db: AsyncSession) -> Evaluation:
+    modules = json.loads(version.modules)
+    technologies = json.loads(version.technologies)
 
     # Compute scores
     scores = {
-        "title_score": scorer.score_title(project.title),
-        "description_score": scorer.score_description(project.description),
+        "title_score": scorer.score_title(title),
+        "description_score": scorer.score_description(version.description),
         "module_score": scorer.score_modules(modules),
-        "tech_score": scorer.score_technologies(technologies, project.domain),
-        "innovation_score": scorer.score_innovation(project.title, project.description),
+        "tech_score": scorer.score_technologies(technologies, version.domain),
+        "innovation_score": scorer.score_innovation(title, version.description),
         "feasibility_score": scorer.score_feasibility(modules, technologies),
     }
     total = scorer.compute_total_score(scores)
 
     # NLP
-    keywords = nlp_processor.extract_keywords(project.title + " " + project.description)
-    skill_data = skill_matcher.match_skills(technologies, project.domain)
+    keywords = nlp_processor.extract_keywords(title + " " + version.description)
+    skill_data = skill_matcher.match_skills(technologies, version.domain)
 
     # AI feedback via Mistral
     prompt = f"""
 Evaluate this final year student project submission:
 
-Title: {project.title}
-Description: {project.description}
+Title: {title}
+Description: {version.description}
 Modules: {', '.join(modules)}
 Technologies: {', '.join(technologies)}
-Domain: {project.domain or 'General'}
+Domain: {version.domain or 'General'}
 
 Provide structured feedback with these sections:
 ### 1. Detailed Feedback
@@ -55,7 +71,7 @@ Be constructive and academic in tone. Use markdown formatting.
 
     # Suggested modules via Mistral
     module_prompt = f"""
-For a project titled "{project.title}" with modules: {', '.join(modules)},
+For a project titled "{title}" with modules: {', '.join(modules)},
 suggest 3 additional modules that would strengthen it.
 Return ONLY a JSON array of 3 strings like: ["Module 1", "Module 2", "Module 3"]
 """
@@ -66,18 +82,18 @@ Return ONLY a JSON array of 3 strings like: ["Module 1", "Module 2", "Module 3"]
         suggested_modules = ["Testing Module", "Documentation Module", "Deployment Module"]
 
     # Web search via Serper for related papers and similar projects
-    serper_data = search_related_work(project.title, project.domain)
+    serper_data = search_related_work(title, version.domain)
     related_papers = serper_data.get("related_papers", [])
     similar_projects = serper_data.get("similar_projects", [])
 
     # Ask Mistral to analyze originality based on search results
-    originality_verdict = _analyze_originality(project.title, related_papers, similar_projects)
+    originality_verdict = _analyze_originality(title, related_papers, similar_projects)
 
-    # Upsert evaluation
-    result = await db.execute(select(Evaluation).where(Evaluation.project_id == project.id))
+    # Upsert evaluation (keyed by version)
+    result = await db.execute(select(Evaluation).where(Evaluation.version_id == version.id))
     evaluation = result.scalar_one_or_none()
     if not evaluation:
-        evaluation = Evaluation(project_id=project.id)
+        evaluation = Evaluation(version_id=version.id)
         db.add(evaluation)
 
     evaluation.title_score = scores["title_score"]
@@ -95,16 +111,12 @@ Return ONLY a JSON array of 3 strings like: ["Module 1", "Module 2", "Module 3"]
     evaluation.similar_projects = json.dumps(similar_projects)
     evaluation.originality_verdict = originality_verdict
 
+    # Update version status from "analyzing" → "reviewed"
+    if version.status == ProjectStatus.analyzing:
+        version.status = ProjectStatus.reviewed
+
     await db.commit()
     await db.refresh(evaluation)
-
-    # Update project status from "analyzing" → "reviewed"
-    proj_result = await db.execute(select(Project).where(Project.id == project.id))
-    proj = proj_result.scalar_one_or_none()
-    if proj and proj.status == ProjectStatus.analyzing:
-        proj.status = ProjectStatus.reviewed
-        await db.commit()
-
     return evaluation
 
 

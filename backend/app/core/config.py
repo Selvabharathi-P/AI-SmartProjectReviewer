@@ -13,6 +13,13 @@ class Settings(BaseSettings):
 
     SERPER_API_KEY: str = ""
 
+    # Zoom Server-to-Server OAuth (free plan: meeting creation + webhooks work;
+    # the participant Report API is paid-only and degrades gracefully).
+    ZOOM_ACCOUNT_ID: str = ""
+    ZOOM_CLIENT_ID: str = ""
+    ZOOM_CLIENT_SECRET: str = ""
+    ZOOM_WEBHOOK_SECRET_TOKEN: str = ""
+
     ADMIN_EMAIL: str = "admin@smarteval.com"
     ADMIN_PASSWORD: str = "Admin@123"
     ADMIN_FULL_NAME: str = "System Admin"

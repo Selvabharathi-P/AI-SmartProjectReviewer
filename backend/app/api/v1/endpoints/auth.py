@@ -24,6 +24,7 @@ async def _user_out(user: User, db: AsyncSession) -> UserOut:
         department_id=user.department_id,
         department=dept_name,
         id_number=user.id_number,
+        is_active=user.is_active,
     )
 
 
@@ -52,5 +53,7 @@ async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)):
     user = result.scalar_one_or_none()
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is deactivated. Contact your administrator.")
     token = create_access_token({"sub": str(user.id), "role": user.role})
     return TokenOut(access_token=token, user=await _user_out(user, db))

@@ -10,7 +10,7 @@ class RelatedPaper(BaseModel):
 
 class EvaluationOut(BaseModel):
     id: int
-    project_id: int
+    version_id: int
     title_score: float
     description_score: float
     module_score: float

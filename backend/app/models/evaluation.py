@@ -6,7 +6,7 @@ class Evaluation(Base):
     __tablename__ = "evaluations"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), unique=True, nullable=False)
+    version_id = Column(Integer, ForeignKey("project_versions.id"), unique=True, nullable=False)
     faculty_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # AI Scores (0-100)
