@@ -65,16 +65,18 @@ async def _get_access_token() -> str:
     return _token_cache["access_token"]
 
 
-async def create_meeting(topic: str, start_time_iso: str, duration_minutes: int, agenda: str | None = None) -> dict:
-    """Create a scheduled meeting on the account's main user. start_time_iso must
-    be UTC ISO8601, e.g. '2026-06-20T10:00:00Z'. Returns the Zoom meeting object."""
+async def create_meeting(topic: str, start_time: str, duration_minutes: int,
+                         agenda: str | None = None, timezone_name: str = "UTC") -> dict:
+    """Create a scheduled meeting on the account's main user. start_time is a local
+    wall-clock time (no offset) interpreted in timezone_name. Returns the Zoom
+    meeting object."""
     token = await _get_access_token()
     body = {
         "topic": topic,
         "type": 2,  # scheduled
-        "start_time": start_time_iso,
+        "start_time": start_time,
         "duration": duration_minutes,
-        "timezone": "UTC",
+        "timezone": timezone_name,
         "agenda": agenda or "",
         "settings": {
             "join_before_host": True,

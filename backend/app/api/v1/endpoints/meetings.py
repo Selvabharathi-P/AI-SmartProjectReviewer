@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -16,6 +16,9 @@ from app.services import meeting_report
 
 logger = logging.getLogger("meetings")
 router = APIRouter(prefix="/meetings", tags=["meetings"])
+
+IST = timezone(timedelta(hours=5, minutes=30))  # India Standard Time (no DST)
+IST_TZ_NAME = "Asia/Kolkata"
 
 
 def _parse_zoom_dt(value: str | None) -> datetime | None:
@@ -48,11 +51,11 @@ async def create_meeting(
     # Best-effort Zoom meeting creation. If Zoom isn't configured we still save
     # the meeting (without a join link) so the rest of the flow works.
     if zoom_client.is_configured():
-        start_iso = payload.scheduled_start.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") \
-            if payload.scheduled_start.tzinfo else payload.scheduled_start.strftime("%Y-%m-%dT%H:%M:%SZ")
+        # Tell Zoom the wall-clock time in IST so its UI shows Indian time.
+        start_ist = _aware(payload.scheduled_start).astimezone(IST).strftime("%Y-%m-%dT%H:%M:%S")
         try:
             zm = await zoom_client.create_meeting(
-                payload.topic, start_iso, payload.duration_minutes, payload.agenda
+                payload.topic, start_ist, payload.duration_minutes, payload.agenda, IST_TZ_NAME
             )
             meeting.zoom_meeting_id = str(zm.get("id"))
             meeting.join_url = zm.get("join_url")
@@ -444,7 +447,8 @@ def _serialize_meeting(m: Meeting, invitee_count: int, include_host_url: bool) -
         "department_id": m.department_id,
         "topic": m.topic,
         "agenda": m.agenda,
-        "scheduled_start": m.scheduled_start,
+        # stored naive-UTC → mark as UTC so clients render it in their local zone (IST)
+        "scheduled_start": _aware(m.scheduled_start),
         "duration_minutes": m.duration_minutes,
         "status": m.status,
         "zoom_meeting_id": m.zoom_meeting_id,
