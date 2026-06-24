@@ -8,6 +8,7 @@ import {
   useInvitableStudents,
   useMeetingAttendance,
   useSyncAttendance,
+  useHostJoin,
   downloadAttendanceReport,
   type CreateMeetingData,
 } from "@/hooks/useMeetings";
@@ -34,7 +35,18 @@ export default function FacultyMeetingsPage() {
   const { data: meetings, isLoading } = useReviewerMeetings();
   const { mutateAsync: updateStatus } = useUpdateMeetingStatus();
   const { mutateAsync: deleteMeeting } = useDeleteMeeting();
+  const { mutateAsync: hostJoin } = useHostJoin();
   const toast = useToast();
+
+  const handleStart = async (m: Meeting) => {
+    if (!m.start_url) return;
+    try {
+      await hostJoin(m.id);
+    } catch {
+      /* attendance is best-effort; still let them start */
+    }
+    window.open(m.start_url, "_blank", "noopener,noreferrer");
+  };
   const [showCreate, setShowCreate] = useState(false);
   const [attendanceFor, setAttendanceFor] = useState<Meeting | null>(null);
 
@@ -107,10 +119,10 @@ export default function FacultyMeetingsPage() {
 
             <div className="flex flex-wrap gap-2">
               {m.start_url && (
-                <a href={m.start_url} target="_blank" rel="noopener noreferrer"
+                <button onClick={() => handleStart(m)}
                    className="flex items-center gap-1 text-xs font-medium bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700">
                   <Video size={13} /> Start <ExternalLink size={11} />
-                </a>
+                </button>
               )}
               <button onClick={() => setAttendanceFor(m)}
                       className="flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200">

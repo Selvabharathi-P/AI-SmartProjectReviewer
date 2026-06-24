@@ -67,11 +67,25 @@ async def _get_access_token() -> str:
 
 async def create_meeting(topic: str, start_time: str, duration_minutes: int,
                          agenda: str | None = None, timezone_name: str = "UTC",
-                         host: str | None = None) -> dict:
+                         host: str | None = None, invitee_emails: list[str] | None = None) -> dict:
     """Create a scheduled meeting hosted by `host` (a Zoom user id/email; falls back
     to ZOOM_HOST_USER or "me"). start_time is a local wall-clock time (no offset)
-    interpreted in timezone_name. Returns the Zoom meeting object."""
+    interpreted in timezone_name. invitee_emails are added as Zoom meeting invitees.
+    Returns the Zoom meeting object."""
     token = await _get_access_token()
+    settings_obj = {
+        "join_before_host": True,
+        "waiting_room": False,
+        "approval_type": 2,
+    }
+    if invitee_emails:
+        # dedupe, drop blanks, preserve order
+        seen, clean = set(), []
+        for e in invitee_emails:
+            if e and e not in seen:
+                seen.add(e)
+                clean.append({"email": e})
+        settings_obj["meeting_invitees"] = clean
     body = {
         "topic": topic,
         "type": 2,  # scheduled
@@ -79,11 +93,7 @@ async def create_meeting(topic: str, start_time: str, duration_minutes: int,
         "duration": duration_minutes,
         "timezone": timezone_name,
         "agenda": agenda or "",
-        "settings": {
-            "join_before_host": True,
-            "waiting_room": False,
-            "approval_type": 2,
-        },
+        "settings": settings_obj,
     }
     host = host or settings.ZOOM_HOST_USER or "me"
 

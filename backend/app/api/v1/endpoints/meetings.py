@@ -53,10 +53,15 @@ async def create_meeting(
     if zoom_client.is_configured():
         # Tell Zoom the wall-clock time in IST so its UI shows Indian time.
         start_ist = _aware(payload.scheduled_start).astimezone(IST).strftime("%Y-%m-%dT%H:%M:%S")
+        # Include the creating staff + invited students as Zoom meeting invitees.
+        invitee_emails = [current_user.email]
+        if payload.invitee_ids:
+            res = await db.execute(select(User.email).where(User.id.in_(set(payload.invitee_ids))))
+            invitee_emails += [e for (e,) in res.all()]
         try:
             zm = await zoom_client.create_meeting(
                 payload.topic, start_ist, payload.duration_minutes, payload.agenda,
-                IST_TZ_NAME, host=current_user.email,
+                IST_TZ_NAME, host=current_user.email, invitee_emails=invitee_emails,
             )
             meeting.zoom_meeting_id = str(zm.get("id"))
             meeting.join_url = zm.get("join_url")
@@ -221,6 +226,35 @@ async def export_report(
         media_type=media,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ── Host: record reviewer attendance on Start ──────────────────
+
+@router.post("/{meeting_id}/host-join")
+async def host_join(
+    meeting_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.faculty, UserRole.admin)),
+):
+    """Record the reviewer/host as present when they start the meeting from the app."""
+    meeting = await _get_owned_meeting(meeting_id, current_user, db)
+    row = (await db.execute(
+        select(MeetingAttendance).where(
+            MeetingAttendance.meeting_id == meeting_id,
+            func.lower(MeetingAttendance.participant_email) == current_user.email.lower(),
+        )
+    )).scalar_one_or_none()
+    now = _naive_utc(datetime.now(timezone.utc))
+    if not row:
+        db.add(MeetingAttendance(
+            meeting_id=meeting_id, student_id=current_user.id,
+            participant_email=current_user.email, participant_name=f"{current_user.full_name} (host)",
+            join_time=now, source="app",
+        ))
+    elif row.join_time is None:
+        row.join_time = now
+    await db.commit()
+    return {"joined": True}
 
 
 # ── Student: app-side join/leave fallback ──────────────────────

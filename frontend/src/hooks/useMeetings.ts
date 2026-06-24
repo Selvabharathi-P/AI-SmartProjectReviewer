@@ -60,6 +60,12 @@ export function useDeleteMeeting() {
   });
 }
 
+export function useHostJoin() {
+  return useMutation({
+    mutationFn: (id: number) => api.post(`/meetings/${id}/host-join`),
+  });
+}
+
 export function useMeetingAttendance(meetingId: number | undefined) {
   return useQuery<MeetingAttendance[]>({
     queryKey: ["meeting-attendance", meetingId],
