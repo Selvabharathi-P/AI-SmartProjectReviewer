@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     ZOOM_CLIENT_ID: str = ""
     ZOOM_CLIENT_SECRET: str = ""
     ZOOM_WEBHOOK_SECRET_TOKEN: str = ""
+    # Host the meeting is created under: "me" (account owner) or a Zoom user id / email.
+    ZOOM_HOST_USER: str = "me"
 
     ADMIN_EMAIL: str = "admin@smarteval.com"
     ADMIN_PASSWORD: str = "Admin@123"

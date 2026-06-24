@@ -55,7 +55,8 @@ async def create_meeting(
         start_ist = _aware(payload.scheduled_start).astimezone(IST).strftime("%Y-%m-%dT%H:%M:%S")
         try:
             zm = await zoom_client.create_meeting(
-                payload.topic, start_ist, payload.duration_minutes, payload.agenda, IST_TZ_NAME
+                payload.topic, start_ist, payload.duration_minutes, payload.agenda,
+                IST_TZ_NAME, host=current_user.email,
             )
             meeting.zoom_meeting_id = str(zm.get("id"))
             meeting.join_url = zm.get("join_url")

@@ -66,10 +66,11 @@ async def _get_access_token() -> str:
 
 
 async def create_meeting(topic: str, start_time: str, duration_minutes: int,
-                         agenda: str | None = None, timezone_name: str = "UTC") -> dict:
-    """Create a scheduled meeting on the account's main user. start_time is a local
-    wall-clock time (no offset) interpreted in timezone_name. Returns the Zoom
-    meeting object."""
+                         agenda: str | None = None, timezone_name: str = "UTC",
+                         host: str | None = None) -> dict:
+    """Create a scheduled meeting hosted by `host` (a Zoom user id/email; falls back
+    to ZOOM_HOST_USER or "me"). start_time is a local wall-clock time (no offset)
+    interpreted in timezone_name. Returns the Zoom meeting object."""
     token = await _get_access_token()
     body = {
         "topic": topic,
@@ -84,12 +85,23 @@ async def create_meeting(topic: str, start_time: str, duration_minutes: int,
             "approval_type": 2,
         },
     }
-    async with httpx.AsyncClient(timeout=20) as client:
-        resp = await client.post(
-            f"{API_BASE}/users/me/meetings",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json=body,
-        )
+    host = host or settings.ZOOM_HOST_USER or "me"
+
+    async def _post(host_id: str):
+        async with httpx.AsyncClient(timeout=20) as client:
+            return await client.post(
+                f"{API_BASE}/users/{host_id}/meetings",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json=body,
+            )
+
+    resp = await _post(host)
+    # Free plan / user not on the Zoom account → host as the account owner instead
+    # of failing the whole request.
+    if resp.status_code == 404 and host != "me":
+        logger.warning("Zoom host '%s' not found; falling back to account owner", host)
+        resp = await _post("me")
+
     if resp.status_code not in (200, 201):
         raise ZoomError(f"Zoom create meeting failed: {resp.status_code} {resp.text}")
     return resp.json()
